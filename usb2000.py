@@ -32,6 +32,7 @@ import time
 
 import numpy as np
 import pyqtgraph as pg
+import pyqtgraph.exporters
 from pyqtgraph.Qt import QtCore, QtGui, QtWidgets
 from seabreeze.spectrometers import Spectrometer
 
@@ -39,7 +40,7 @@ from seabreeze.spectrometers import Spectrometer
 class USB2000(QtWidgets.QMainWindow):
     def __init__(self, *args, **kwargs):
         super(USB2000, self).__init__(*args, **kwargs)
-        self.integration_time_us = 20000
+        self.integration_time_us = 200
         self.devices = ["No device connected"]
         self.spec = None
         self.initialized = False
@@ -136,7 +137,13 @@ class USB2000(QtWidgets.QMainWindow):
         # clear plot
         # self.plot.clear()
 
-    def export_data(self):
+    def export_screenshot(self):
+        exporter = pg.exporters.ImageExporter( self.plot_widget.scene() )
+        fileName = self.spec.model+"_"+self.spec.serial_number+"_"+time.strftime("%d-%b-%Y_%H-%M-%S")
+        #pg.Qt.QGuiApplication.processEvents()
+        exporter.export("{}.png".format(fileName))
+
+    def export_csv(self):
         if self.intensities is None:
             self.status_label.setText("ERROR: No data to export")
             return
@@ -165,18 +172,22 @@ class USB2000(QtWidgets.QMainWindow):
         pos = event[0]
         if self.plot_widget.sceneBoundingRect().contains(pos):
             mouse_point = self.plot_widget.plotItem.vb.mapSceneToView(pos)
-            index = int(mouse_point.x())
+            """index = int(mouse_point.x())
             if index > 0 and index < len(self.wavelengths):
                 self.status_label.setText(
                     "Wavelength: {:.2f} nm".format(self.wavelengths[index])
-                )
+                )"""
             self.v_line.setPos(mouse_point.x())
+            self.h_line.setPos(mouse_point.y())
+            # self.label_cursorpos.setText("x: {:.2f}\ny: {:.2f}".format(mouse_point.x(),mouse_point.y()))
+            # self.label_cursorpos.setPos(QtCore.QPointF(min(self.plot_widget.getViewBox().viewRange()[0]),
+            #                                         	max(self.plot_widget.getViewBox().viewRange()[1])))
 
     def build_main_ui(self):
         self.main_layout = QtWidgets.QGridLayout()
         self.setCentralWidget(QtWidgets.QWidget(self))
         self.centralWidget().setLayout(self.main_layout)
-        self.setWindowTitle("USB2000 Spectrometer")
+        self.setWindowTitle("Ocean Insight Spectrometer")
         self.setStyleSheet(
             """
         QMainWindow {background-color: black;}
@@ -218,6 +229,15 @@ class USB2000(QtWidgets.QMainWindow):
         self.v_line = pg.InfiniteLine(angle=90, movable=False)
         self.plot_widget.addItem(self.v_line, ignore_bounds=True)
 
+        self.h_line = pg.InfiniteLine(angle=0, movable=False)
+        self.plot_widget.addItem(self.h_line, ignore_bounds=True)
+
+        
+        self.label_cursorpos = pg.TextItem('', **{'color': '#FFF'})
+        self.plot_widget.addItem(self.label_cursorpos)
+        self.label_cursorpos.setPos(QtCore.QPointF(min(self.plot_widget.getViewBox().viewRange()[0]),
+                                                   min(self.plot_widget.getViewBox().viewRange()[1])))
+        print(self.plot_widget.getViewBox().viewRange())
         self.plot = self.plot_widget.plot(np.zeros(1), pen=(0, 255, 0))
         self.proxy = pg.SignalProxy(
             self.plot_widget.scene().sigMouseMoved, rateLimit=60, slot=self.mouse_moved
@@ -285,12 +305,18 @@ class USB2000(QtWidgets.QMainWindow):
         self.stop_capture_button.clicked.connect(self.stop_capture)
         self.stop_capture_button.setEnabled(False)
         self.toolbar.addWidget(self.stop_capture_button)
-
+        
         self.toolbar.addSeparator()
 
-        self.export_button = QtWidgets.QPushButton("Export data")
+        self.screenshot_button = QtWidgets.QPushButton("Screenshot PNG")
+        self.screenshot_button.setFixedWidth(75)
+        self.screenshot_button.clicked.connect(self.export_screenshot)
+        self.toolbar.addWidget(self.screenshot_button)
+
+
+        self.export_button = QtWidgets.QPushButton("Export CSV")
         self.export_button.setFixedWidth(75)
-        self.export_button.clicked.connect(self.export_data)
+        self.export_button.clicked.connect(self.export_csv)
         self.toolbar.addWidget(self.export_button)
 
 
@@ -304,6 +330,7 @@ def test():
 
 
 def main():
+    global app 
     app = QtWidgets.QApplication(sys.argv)
     usb2000 = USB2000()
     sys.exit(app.exec_())
