@@ -26,6 +26,10 @@ A simple and fast pyqtgraph-based UI for use with Ocean Optics spectrometers.
 * Author(s): Paul Bupe Jr
 """
 
+from io import StringIO
+import pandas as pd #read_csv()
+import subprocess   #WindowsPowerShell
+
 import csv
 import sys
 import time
@@ -68,7 +72,41 @@ class USB2000(QtWidgets.QMainWindow):
 
     def init_spectrometer(self):
         try:
+            """#TODO: outsource this to a function and have detach as well! detach first always by default when starting program (for now, but maybe later in destructor method in case somebody x's the window and it's still attached, we dont want USB eject related loss or damage...)
+            powerShellCommand = ["/mnt/c/Windows/System32/WindowsPowerShell/v1.0/powershell.exe", 
+                                 "usbipd wsl list", 
+                                 " | ", 
+                                 "Select-String -Pattern \"Ocean Optics\""]
+            print("Finding all connected USB devices with \"Ocean Optics\" in name...")
+            print(powerShellCommand)
+            powerShellMessage = subprocess.run(powerShellCommand, capture_output=True)
+            listUSBIPDDevices = powerShellMessage
+            listUSBIPDDevices = listUSBIPDDevices.stdout.decode().strip().split("  ")   #hacky string manipulation...
+            listUSBIPDDevices = list(filter(None, listUSBIPDDevices))                   #hacky string manipulation...
+            firstHitBUSID = listUSBIPDDevices[0]
+            print(firstHitBUSID)
+            time.sleep(3)
+            
+            powerShellCommand = ["/mnt/c/Windows/System32/WindowsPowerShell/v1.0/powershell.exe", 
+                                 "usbipd wsl  detach --busid {} --distribution Ubuntu".format(str(firstHitBUSID))]
+            print("Disconnecting first Spectrometer of list...")
+            print(powerShellCommand)
+            powerShellMessage = subprocess.run(powerShellCommand, capture_output=True)
+            time.sleep(3) # buffer time to let powershell command get done (subprocess.run oddly not blocking as command... we hack around)
+
+            powerShellCommand = ["/mnt/c/Windows/System32/WindowsPowerShell/v1.0/powershell.exe", 
+                                 "usbipd wsl  attach --busid {} --distribution Ubuntu".format(str(firstHitBUSID))]
+            print("Reconnecting first Spectrometer of list...")
+            print(powerShellCommand)
+            powerShellMessage = subprocess.run(powerShellCommand, capture_output=True)
+            #TODO: You have to press Connect two times such that a device can be found. Is there a lag here? run() should be blocking
+            #TODO: sudo apt install linux-tools-virtual hwdata && sudo update-alternatives --install /usr/local/bin/usbip usbip `ls /usr/lib/linux-tools/*/usbip | tail -n1` 20 #Before every start I would suggest because sometimes WSL breaks possibly because of update
+            # print("Made it to sleep")
+            print("Connecting to Ocean Optics Spectrometer...")
+            time.sleep(3) # buffer time to let powershell command get done (subprocess.run oddly not blocking as command... we hack around)
+            #print("Woke up")"""
             self.spec = Spectrometer.from_first_available()
+            print("Device initialized: " + self.spec.model)
             self.spec.integration_time_micros(self.integration_time_us)
             self.wavelengths = self.spec.wavelengths()
             self.plot_widget.setXRange(
@@ -168,6 +206,21 @@ class USB2000(QtWidgets.QMainWindow):
 
         self.status_label.setText("INFO: Data exported to %s" % filename)
 
+    def import_csv(self):
+        #Take data in with pandas
+        #Plot it and make sure update plot does not get rid of this imported data
+        dlg = pg.FileDialog()
+        if dlg.exec_():
+            filenames = dlg.selectedFiles()
+            
+            self.imported_wavelengths, self.imported_averaged_intensities = np.genfromtxt(filenames[0],
+                                                                                          delimiter=",",
+                                                                                          skip_header=1,
+                                                                                          unpack=True)
+            self.imported_data.setData(np.zeros(1)) #one imported plot at a time
+            self.imported_data.setData(self.imported_wavelengths, self.imported_averaged_intensities)
+            print(self.plot_widget.getPlotItem())
+
     def mouse_moved(self, event):
         pos = event[0]
         if self.plot_widget.sceneBoundingRect().contains(pos):
@@ -226,12 +279,17 @@ class USB2000(QtWidgets.QMainWindow):
         self.plot_widget.showGrid(x=True, y=True, alpha=0.5)
         self.plot_widget.setMouseEnabled(x=False, y=False)
 
+        
+        # cursor v and h line
         self.v_line = pg.InfiniteLine(angle=90, movable=False)
         self.plot_widget.addItem(self.v_line, ignore_bounds=True)
-
         self.h_line = pg.InfiniteLine(angle=0, movable=False)
         self.plot_widget.addItem(self.h_line, ignore_bounds=True)
-
+        
+        # placeholder for imported csv
+        self.imported_data = pg.PlotDataItem(np.zeros(1))#genfromtxt('my_file.csv') #TODO: pandas import csv here
+        self.plot_widget.addItem(self.imported_data)
+        
         
         self.label_cursorpos = pg.TextItem('', **{'color': '#FFF'})
         self.plot_widget.addItem(self.label_cursorpos)
@@ -274,7 +332,7 @@ class USB2000(QtWidgets.QMainWindow):
             "color: rgb(190, 190, 190); margin-left: 10px;"
         )
         self.toolbar.addWidget(scans_to_average_label)
-
+        
         self.scans_to_average_edit = QtWidgets.QLineEdit(str(self.scans_to_average))
         self.scans_to_average_edit.setFixedWidth(40)
         self.scans_to_average_edit.setValidator(int_validator)
@@ -312,6 +370,11 @@ class USB2000(QtWidgets.QMainWindow):
         self.screenshot_button.setFixedWidth(75)
         self.screenshot_button.clicked.connect(self.export_screenshot)
         self.toolbar.addWidget(self.screenshot_button)
+
+        self.import_button = QtWidgets.QPushButton("Import CSV")
+        self.import_button.setFixedWidth(75)
+        self.import_button.clicked.connect(self.import_csv)
+        self.toolbar.addWidget(self.import_button)
 
 
         self.export_button = QtWidgets.QPushButton("Export CSV")
