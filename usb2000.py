@@ -219,7 +219,10 @@ class USB2000(QtWidgets.QMainWindow):
                                                                                           unpack=True)
             self.imported_data.setData(np.zeros(1)) #one imported plot at a time
             self.imported_data.setData(self.imported_wavelengths, self.imported_averaged_intensities)
-            print(self.plot_widget.getPlotItem())
+
+    def clear_plots(self):
+        self.imported_data.setData(np.zeros(1))
+        self.plot.setData(np.zeros(1))
 
     def mouse_moved(self, event):
         pos = event[0]
@@ -303,84 +306,98 @@ class USB2000(QtWidgets.QMainWindow):
         self.main_layout.addWidget(self.plot_widget, 0, 0, 1, 1)
 
     def build_toolbar(self):
-        self.toolbar = self.addToolBar("Toolbar")
-        self.toolbar.setMovable(False)
-        self.toolbar.setFloatable(False)
+        # Window toolbar
+        self.window_menubar = self.menuBar()#QtWidgets.QMenuBar.addMenu("window_toolbar")
+        self.window_menubar_file = self.window_menubar.addMenu("File")
+        self.window_menubar_file.addAction("Import CSV...", self.import_csv)
+        self.window_menubar_file.addAction("Export CSV...", self.export_csv)
+        self.window_menubar_file.addAction("Screenshot", self.export_screenshot)
+        self.window_menubar_file.addAction("Clear Plots", self.clear_plots)
+        
+        # Canvas toolbar
+        self.canvas_toolbar = self.addToolBar("canvas_toolbar")
+        self.canvas_toolbar.setMovable(False)
+        self.canvas_toolbar.setFloatable(False)
 
         # int validation
         int_validator = QtGui.QIntValidator()
 
         self.connect_button = QtWidgets.QPushButton("Connect")
         self.connect_button.clicked.connect(self.init_spectrometer)
-        self.toolbar.addWidget(self.connect_button)
+        self.canvas_toolbar.addWidget(self.connect_button)
 
         integration_time_label = QtWidgets.QLabel("Integration time (us):")
         integration_time_label.setStyleSheet(
             "color: rgb(190, 190, 190); margin-left: 10px;"
         )
-        self.toolbar.addWidget(integration_time_label)
+        self.canvas_toolbar.addWidget(integration_time_label)
 
         self.integration_time_edit = QtWidgets.QLineEdit(str(self.integration_time_us))
         self.integration_time_edit.setFixedWidth(60)
         self.integration_time_edit.setValidator(int_validator)
         self.integration_time_edit.setAlignment(QtCore.Qt.AlignRight)
         self.integration_time_edit.editingFinished.connect(self.update_integration_time)
-        self.toolbar.addWidget(self.integration_time_edit)
+        self.canvas_toolbar.addWidget(self.integration_time_edit)
 
         scans_to_average_label = QtWidgets.QLabel("Scans to average:")
         scans_to_average_label.setStyleSheet(
             "color: rgb(190, 190, 190); margin-left: 10px;"
         )
-        self.toolbar.addWidget(scans_to_average_label)
+        self.canvas_toolbar.addWidget(scans_to_average_label)
         
         self.scans_to_average_edit = QtWidgets.QLineEdit(str(self.scans_to_average))
         self.scans_to_average_edit.setFixedWidth(40)
         self.scans_to_average_edit.setValidator(int_validator)
         self.scans_to_average_edit.setAlignment(QtCore.Qt.AlignRight)
         self.scans_to_average_edit.editingFinished.connect(self.update_scans_to_average)
-        self.toolbar.addWidget(self.scans_to_average_edit)
+        self.canvas_toolbar.addWidget(self.scans_to_average_edit)
 
         # Add status label
         self.status_label = QtWidgets.QLabel("STATUS: No device connected")
         self.status_label.setStyleSheet("color: white; margin-left: 10px;")
-        self.toolbar.addWidget(self.status_label)
+        self.canvas_toolbar.addWidget(self.status_label)
 
         # create spacer widget
         spacer = QtWidgets.QWidget()
         spacer.setSizePolicy(
             QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Expanding
         )
-        self.toolbar.addWidget(spacer)
+        self.canvas_toolbar.addWidget(spacer)
 
         self.start_capture_button = QtWidgets.QPushButton("Start capture")
         self.start_capture_button.setFixedWidth(75)
         self.start_capture_button.clicked.connect(self.start_capture)
         self.start_capture_button.setEnabled(False)
-        self.toolbar.addWidget(self.start_capture_button)
+        self.canvas_toolbar.addWidget(self.start_capture_button)
 
         self.stop_capture_button = QtWidgets.QPushButton("Stop capture")
         self.stop_capture_button.setFixedWidth(75)
         self.stop_capture_button.clicked.connect(self.stop_capture)
         self.stop_capture_button.setEnabled(False)
-        self.toolbar.addWidget(self.stop_capture_button)
+        self.canvas_toolbar.addWidget(self.stop_capture_button)
         
-        self.toolbar.addSeparator()
+        self.canvas_toolbar.addSeparator()
 
         self.screenshot_button = QtWidgets.QPushButton("Screenshot PNG")
         self.screenshot_button.setFixedWidth(75)
         self.screenshot_button.clicked.connect(self.export_screenshot)
-        self.toolbar.addWidget(self.screenshot_button)
+        self.canvas_toolbar.addWidget(self.screenshot_button)
+
+        self.clear_button = QtWidgets.QPushButton("Clear Plots")
+        self.clear_button.setFixedWidth(75)
+        self.clear_button.clicked.connect(self.clear_plots)
+        self.canvas_toolbar.addWidget(self.clear_button)
 
         self.import_button = QtWidgets.QPushButton("Import CSV")
         self.import_button.setFixedWidth(75)
         self.import_button.clicked.connect(self.import_csv)
-        self.toolbar.addWidget(self.import_button)
+        self.canvas_toolbar.addWidget(self.import_button)
 
 
         self.export_button = QtWidgets.QPushButton("Export CSV")
         self.export_button.setFixedWidth(75)
         self.export_button.clicked.connect(self.export_csv)
-        self.toolbar.addWidget(self.export_button)
+        self.canvas_toolbar.addWidget(self.export_button)
 
 
 def test():
